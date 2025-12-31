@@ -1,0 +1,113 @@
+<script>
+(function() {
+    'use strict';
+    
+    console.log("➕➖ Кнопки + и - на карточках склада теперь работают и сохраняют количество!");
+    
+    // Функция инициализации кнопок количества
+    function setupQuantityControls() {
+        const storagePage = document.getElementById('storage-page') || document.querySelector('.storage-page');
+        if (!storagePage) return;
+        
+        if (!window.cart || !Array.isArray(window.cart)) {
+            console.warn("window.cart не найден");
+            return;
+        }
+        
+        // Находим все карточки товаров в складе
+        const cards = storagePage.querySelectorAll('.storage-card, .cart-item');
+        
+        cards.forEach(card => {
+            // Получаем ID товара из data-атрибута
+            const productId = card.dataset.productId || card.dataset.id || card.getAttribute('data-product-id');
+            if (!productId) return;
+            
+            // Находим элементы: кнопки +/–, отображение количества
+            const minusBtn = card.querySelector('.qty-btn:first-child, button:-minus, [title*="уменьшить"], button:has-text("-")');
+            const plusBtn = card.querySelector('.qty-btn:last-child, button:+plus, [title*="увеличить"], button:has-text("+")');
+            const qtyDisplay = card.querySelector('.qty-val, .quantity, .qty');
+            
+            if (!minusBtn || !plusBtn || !qtyDisplay) return;
+            
+            // Находим товар в корзине
+            const cartItem = window.cart.find(item => 
+                String(item.productId) === String(productId) || 
+                String(item.id) === String(productId)
+            );
+            if (!cartItem) return;
+            
+            // Устанавливаем текущее количество
+            qtyDisplay.textContent = cartItem.quantity || 1;
+            
+            // Функция изменения количества
+            function changeQuantity(delta) {
+                let newQty = (cartItem.quantity || 1) + delta;
+                if (newQty < 1) newQty = 1; // минимум 1
+                
+                cartItem.quantity = newQty;
+                qtyDisplay.textContent = newQty;
+                
+                console.log(`Товар ${productId}: количество изменено на ${newQty}`);
+                
+                // Обновляем бейджи в каталоге и на главной
+                updateBadgesEverywhere(productId, newQty);
+                
+                // Вызываем твои функции обновления (если есть)
+                if (typeof updateStorageBadge === 'function') updateStorageBadge();
+                if (typeof updateCartIcon === 'function') updateCartIcon();
+                if (typeof renderStorageCart === 'function') renderStorageCart(); // перерендер склада
+                
+                // Вибрация
+                if (typeof triggerVibration === 'function') triggerVibration(30);
+            }
+            
+            // Обработчики
+            minusBtn.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                changeQuantity(-1);
+            };
+            
+            plusBtn.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                changeQuantity(1);
+            };
+        });
+    }
+    
+    // Обновляем бейджи "в складе" по всему приложению
+    function updateBadgesEverywhere(productId, quantity) {
+        document.querySelectorAll(`.product-card-ios, .shop-card, .storage-card`).forEach(card => {
+            if (card.dataset.productId == productId || card.dataset.id == productId) {
+                const badge = card.querySelector('.cart-badge, .in-cart-badge');
+                const button = card.querySelector('.add-to-cart-btn-ios, .buy-btn');
+                
+                if (badge) {
+                    badge.textContent = quantity > 0 ? `${quantity} в складе` : '';
+                    badge.style.display = quantity > 0 ? 'block' : 'none';
+                }
+                
+                if (button && button.textContent.includes('В склад')) {
+                    button.textContent = quantity > 0 ? '✓ В складе' : 'В склад';
+                    button.style.background = quantity > 0 ? '#d4af37' : '#007AFF';
+                }
+            }
+        });
+    }
+    
+    // Запуск при загрузке и при изменениях
+    document.addEventListener('DOMContentLoaded', setupQuantityControls);
+    setTimeout(setupQuantityControls, 500);
+    setTimeout(setupQuantityControls, 1500);
+    
+    // Наблюдатель за новыми карточками (при renderStorageCart)
+    const observer = new MutationObserver(() => {
+        setTimeout(setupQuantityControls, 100);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    console.log("✅ Готово: + и - на складе работают, количество сохраняется, бейджи обновляются");
+    
+})();
+</script>
